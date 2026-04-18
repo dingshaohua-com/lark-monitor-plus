@@ -1,64 +1,36 @@
 package utils
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"sync"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-var (
-	Pool *pgxpool.Pool
-	once sync.Once // 确保初始化只执行一次
-)
+// 定义一个全局变量，以便其他地方调用
+var DB *gorm.DB
 
-// InitDB 初始化连接池
 func InitDB() {
-	once.Do(func() {
-		// 1. 获取 DSN，建议从环境变量获取，方便部署
-		dsn := os.Getenv("DATABASE_URL")
-		if dsn == "" {
-			// 备用：本地开发默认配置
-			dsn = "postgres://postgres:dshvv@103.110.80.247:5432/school"
-		}
+	var err error
+	databaseUrl := "host=103.110.80.247 user=postgres password=dshvv dbname=school port=5432 sslmode=disable"
 
-		// 2. 解析并配置连接池参数
-		config, err := pgxpool.ParseConfig(dsn)
-		if err != nil {
-			panic(fmt.Sprintf("无法解析数据库 DSN: %v", err))
-		}
-
-		// --- 生产环境参数优化 ---
-		config.MaxConns = 20                      // 最大连接数
-		config.MinConns = 5                       // 最小空闲连接数
-		config.MaxConnLifetime = 30 * time.Minute // 连接最长存活时间
-		config.MaxConnIdleTime = 10 * time.Minute // 空闲连接回收时间
-
-		// 3. 创建连接池
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		Pool, err = pgxpool.NewWithConfig(ctx, config)
-		if err != nil {
-			panic(fmt.Sprintf("无法创建连接池: %v", err))
-		}
-
-		// 4. 尝试 Ping 一下，确保数据库是真的活着的
-		if err := Pool.Ping(ctx); err != nil {
-			panic(fmt.Sprintf("数据库连接测试失败: %v", err))
-		}
-
-		fmt.Println("🐘 PostgreSQL 连接池初始化成功 (pgxpool)")
-	})
+	// 注意：这里使用 = 而不是 :=，因为 DB 已经在外部声明了
+	DB, err = gorm.Open(postgres.Open(databaseUrl), &gorm.Config{})
+	if err != nil {
+		panic("无法连接数据库: " + err.Error())
+	}
 }
 
-// CloseDB 优雅关闭
 func CloseDB() {
-	if Pool != nil {
-		Pool.Close()
-		fmt.Println("🐘 PostgreSQL 连接池已安全关闭")
+	sqlDB, err := DB.DB()
+	if err != nil {
+		fmt.Println("获取 sql.DB 失败:", err)
+		return
+	}
+	err = sqlDB.Close()
+	if err != nil {
+		fmt.Println("关闭数据库连接失败:", err)
+	} else {
+		fmt.Println("--- 数据库连接已安全关闭 ---")
 	}
 }

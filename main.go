@@ -1,27 +1,33 @@
 package main
 
 import (
-	"context"
 	"fmt"
-
-	"github.com/jackc/pgx/v5"
+	"lark-monitor-plus/utils"
 )
 
 type Teacher struct {
-	id   string
-	name string
-	age  int
+	// 必须大写开头！后面反引号里的才是数据库真实的列名
+	ID   string `gorm:"column:id"`
+	Name string
+	Age  int
+}
+
+// TableName 核心：手动指定表名，覆盖 GORM 的复数约定
+func (Teacher) TableName() string {
+	return "teacher"
 }
 
 func main() {
-	var databaseUrl = "postgres://postgres:dshvv@103.110.80.247:5432/school"
-	conn, _ := pgx.Connect(context.Background(), databaseUrl)
-	defer conn.Close(context.Background())
+	// 1. 初始化连接
+	utils.InitDB()
 
-	var user Teacher
-	var sql = "select * from teacher where id=$1"
-	conn.QueryRow(context.Background(), sql, 1).Scan(&user.id, &user.name, &user.age)
-	fmt.Printf("%+v\n", user) // + 号表示 "Plus keys"（带上字段名）
+	// 2. 延迟关闭（确保在 main 函数退出前，连接池被清理）
+	defer utils.CloseDB()
+
+	// 3. 查询数据
+	var users []Teacher
+	utils.DB.Find(&users)
+	fmt.Printf("%+v\n", users)
 }
 
 //conn, _ := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
